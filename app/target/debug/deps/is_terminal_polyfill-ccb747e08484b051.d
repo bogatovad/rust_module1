@@ -1,0 +1,5 @@
+/Users/artembogatov/Documents/rust/rust_module1/app/target/debug/deps/is_terminal_polyfill-ccb747e08484b051.d: /Users/artembogatov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/is_terminal_polyfill-1.70.1/src/lib.rs
+
+/Users/artembogatov/Documents/rust/rust_module1/app/target/debug/deps/libis_terminal_polyfill-ccb747e08484b051.rmeta: /Users/artembogatov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/is_terminal_polyfill-1.70.1/src/lib.rs
+
+/Users/artembogatov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/is_terminal_polyfill-1.70.1/src/lib.rs:
