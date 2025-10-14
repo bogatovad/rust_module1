@@ -1,4 +1,5 @@
 mod csv_parsing;
+mod mt940_parsing;
 
 // #[cfg(test)]
 // mod tests {
