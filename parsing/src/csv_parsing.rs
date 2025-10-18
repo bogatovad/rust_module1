@@ -18,6 +18,7 @@ impl Transaction  {
         let mut reader = csv::ReaderBuilder::new().from_reader(input_reader);
         let mut transactions: Vec<Transaction > = Vec::new();
 
+        
         // read file line by line.
         for result in reader.deserialize() {
             let op: Transaction  = result?;
@@ -37,20 +38,11 @@ impl Transaction  {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs::{self, File}, io::Read};
-
     use super::*;
 
     #[test]
     fn parsing_csv_test_stdin() {
         //arrange
-        let file_path = "in_data.csv";
-        let r = &mut fs::File::open(file_path);
-        
-        let file = match r {
-            Ok(file) => file,
-            _ => panic!("test panic.")
-        };
         let data = "date,amount,currency,description,reference\n2023-10-01,-1000.00,EUR,Payment to supplier,REF123456\n2023-10-02,2500.00,EUR,Client payment,REF789012".as_bytes();
         let mut cursor = std::io::Cursor::new(data);
 
@@ -79,7 +71,7 @@ mod tests {
     fn parsing_csv_test_file() {
         //arrange
         let file_path = "in_data.csv";
-        let r = &mut fs::File::open(file_path);
+        let r = &mut std::fs::File::open(file_path);
         
         let file = match r {
             Ok(file) => file,
@@ -112,7 +104,7 @@ mod tests {
 
         //arrange
         let file_path = "in_data_write_test.csv";
-        let r = &mut fs::File::create(file_path);
+        let r = &mut std::fs::File::create(file_path);
         let mut data = Transaction{
             date: NaiveDate::from_ymd_opt(2023, 12, 31).expect("Valid date"),
             amount: 100.5,
@@ -129,9 +121,9 @@ mod tests {
         data.write(file);
         
         //assert
-        let data_from_file= fs::read_to_string(file_path);
+        let data_from_file= std::fs::read_to_string(file_path);
         assert_eq!(data_from_file.unwrap(), "date,amount,currency,description,reference\n2023-12-31,100.5,RUB,Test write csv.,Some test ref\n");
-        fs::remove_file(file_path);
+        std::fs::remove_file(file_path);
     }
 
     #[test]
