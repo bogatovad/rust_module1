@@ -3,7 +3,7 @@ use chrono::NaiveDate;
 
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Operation {
+struct Transaction  {
     date: NaiveDate,
     amount: f32,
     currency: String,
@@ -11,30 +11,57 @@ struct Operation {
     reference: String
 }
 
-fn read_csv_file(file_path: &str) -> Result<Vec<Operation>, Box<dyn std::error::Error>>{
-    let mut reader = csv::Reader::from_path(file_path)?;
-    let mut csv_parsed_data: Vec<Operation> = Vec::new();
 
-    // read file line by line.
-    for result in reader.deserialize() {
-        let op: Operation = result?;
-        csv_parsed_data.push(op);
+impl Transaction  {
+    pub fn read<R: std::io::Read>(input_reader: &mut R) -> Result<Vec<Transaction>, Box<dyn std::error::Error>>{
+        // create reader.
+        let mut reader = csv::ReaderBuilder::new().from_reader(input_reader);
+        let mut transactions: Vec<Transaction > = Vec::new();
+
+        // read file line by line.
+        for result in reader.deserialize() {
+            let op: Transaction  = result?;
+            transactions.push(op);
+        }
+
+        Ok(transactions)
     }
 
-    Ok(csv_parsed_data)
+    pub fn write<R: std::io::Write>(&mut self, input_writer: &mut R)-> Result<(), Box<dyn std::error::Error>>{
+        // create writer.
+        let mut writer = csv::WriterBuilder::new().from_writer(input_writer);
+        writer.serialize(self);
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::{fs::{self, File}, io::Read};
+
     use super::*;
 
     #[test]
-    fn parsing_csv_test() {
-        //act
-        let file_path = "in_data.csv";
-
+    fn parsing_csv_test_stdin() {
         //arrange
-        let result: Vec<Operation> = read_csv_file(&file_path).unwrap();
+        let file_path = "in_data.csv";
+        let r = &mut fs::File::open(file_path);
+        
+        let file = match r {
+            Ok(file) => file,
+            _ => panic!("test panic.")
+        };
+        let data = "date,amount,currency,description,reference\n2023-10-01,-1000.00,EUR,Payment to supplier,REF123456\n2023-10-02,2500.00,EUR,Client payment,REF789012".as_bytes();
+        let mut cursor = std::io::Cursor::new(data);
+
+        //act
+        let result = Transaction::read(&mut cursor);
+        
+        let result = match result {
+            Ok(res) => res,
+            _ => panic!("fd")
+            
+        };
 
         //assert
         assert_eq!(result[0].amount, -1000.00);
@@ -46,5 +73,87 @@ mod tests {
         assert_eq!(result[1].currency, "EUR");
         assert_eq!(result[1].description, "Client payment");
         assert_eq!(result[1].reference, "REF789012");
+    }
+
+    #[test]
+    fn parsing_csv_test_file() {
+        //arrange
+        let file_path = "in_data.csv";
+        let r = &mut fs::File::open(file_path);
+        
+        let file = match r {
+            Ok(file) => file,
+            _ => panic!("test panic.")
+        };
+
+        //act
+        let result = Transaction::read(file);
+        
+        let result = match result {
+            Ok(res) => res,
+            _ => panic!("fd")
+            
+        };
+
+        //assert
+        assert_eq!(result[0].amount, -1000.00);
+        assert_eq!(result[0].currency, "EUR");
+        assert_eq!(result[0].description, "Payment to supplier");
+        assert_eq!(result[0].reference, "REF123456");
+
+        assert_eq!(result[1].amount, 2500.00);
+        assert_eq!(result[1].currency, "EUR");
+        assert_eq!(result[1].description, "Client payment");
+        assert_eq!(result[1].reference, "REF789012");
+    }
+
+    #[test]
+    fn write_test_to_file(){
+
+        //arrange
+        let file_path = "in_data_write_test.csv";
+        let r = &mut fs::File::create(file_path);
+        let mut data = Transaction{
+            date: NaiveDate::from_ymd_opt(2023, 12, 31).expect("Valid date"),
+            amount: 100.5,
+            currency: String::from("RUB"),
+            description: String::from("Test write csv."),
+            reference: String::from("Some test ref"),
+        };
+        let file = match r {
+            Ok(file) => file,
+            _ => panic!("test panic.")
+        };
+
+        //act
+        data.write(file);
+        
+        //assert
+        let data_from_file= fs::read_to_string(file_path);
+        assert_eq!(data_from_file.unwrap(), "date,amount,currency,description,reference\n2023-12-31,100.5,RUB,Test write csv.,Some test ref\n");
+        fs::remove_file(file_path);
+    }
+
+    #[test]
+    fn write_test_to_stdin(){
+
+        //arrange
+        let mut vec = Vec::new();
+        let mut cursor = std::io::Cursor::new(&mut vec);
+        let mut data = Transaction{
+            date: NaiveDate::from_ymd_opt(2023, 12, 31).expect("Valid date"),
+            amount: 100.5,
+            currency: String::from("RUB"),
+            description: String::from("Test write csv."),
+            reference: String::from("Some test ref"),
+        };
+
+        //act
+        data.write( &mut cursor);
+
+        //assert
+        let result_string = String::from_utf8(vec).unwrap();
+        println!("{}", result_string);
+        assert_eq!(result_string, "date,amount,currency,description,reference\n2023-12-31,100.5,RUB,Test write csv.,Some test ref\n");
     }
 }
