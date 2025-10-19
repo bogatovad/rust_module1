@@ -28,10 +28,10 @@ impl Transaction  {
         Ok(transactions)
     }
 
-    pub fn write<R: std::io::Write>(&mut self, input_writer: &mut R)-> Result<(), Box<dyn std::error::Error>>{
+    pub fn write<W: std::io::Write>(&mut self, input_writer: &mut W)-> Result<(), Box<dyn std::error::Error>>{
         // create writer.
         let mut writer = csv::WriterBuilder::new().from_writer(input_writer);
-        writer.serialize(self);
+        let _ = writer.serialize(self);
         Ok(())
     }
 }
@@ -118,12 +118,12 @@ mod tests {
         };
 
         //act
-        data.write(file);
+        let _ = data.write(file);
         
         //assert
         let data_from_file= std::fs::read_to_string(file_path);
         assert_eq!(data_from_file.unwrap(), "date,amount,currency,description,reference\n2023-12-31,100.5,RUB,Test write csv.,Some test ref\n");
-        std::fs::remove_file(file_path);
+        let _ = std::fs::remove_file(file_path);
     }
 
     #[test]
@@ -141,7 +141,7 @@ mod tests {
         };
 
         //act
-        data.write( &mut cursor);
+        let _ = data.write( &mut cursor);
 
         //assert
         let result_string = String::from_utf8(vec).unwrap();
