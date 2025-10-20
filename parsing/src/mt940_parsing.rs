@@ -1,21 +1,23 @@
 use swift_mt_message::messages::mt940::MT940;
 use swift_mt_message::fields::field20::Field20;
 
-
-// эта структура уже есть - это Message. Подумать как работать с ней и при этом реализвать ей методы read и write.
 pub struct Mt940Wrapper(pub MT940);
 
 impl Mt940Wrapper {
-    fn read<R: std::io::Read>(input_reader: &mut R) -> Result<Self, Box<dyn std::error::Error>>{
+    pub fn read<R: std::io::Read>(input_reader: &mut R) -> Result<Self, Box<dyn std::error::Error>>{
         let mut buf = Vec::new();
         let _ = input_reader.read_to_end(&mut buf);
         let content = String::from_utf8(buf).unwrap();
         Ok(Mt940Wrapper(MT940::parse_from_block4(&content)?))
     }
 
-    fn write<W: std::io::Write>(&self, input_writer: &mut W) -> Result<(), Box<dyn std::error::Error>>{
+    pub fn write<W: std::io::Write>(&self, input_writer: &mut W) -> Result<(), Box<dyn std::error::Error>>{
         let mt_string = self.to_mt_string();
         let _ = input_writer.write_all(mt_string.as_bytes());
+        Ok(())
+    }
+
+    pub fn to_camt053() -> Result<(), Box<dyn std::error::Error>>{
         Ok(())
     }
 }

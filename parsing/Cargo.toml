@@ -10,7 +10,7 @@ chrono = { version = "0.4", features = ["serde"] }
 csv = "1.3.1"
 mt940 = "1.0"
 swift-mt-message = "3.1.4"
-iso20022 = "0.1.9"
 serde-xml-rs = "0.8.1"
-iso-20022-sdk = "0.1.0"
 mx-message = "3.1.4"
+iso-20022-camt = "0.1.0"
+quick-xml = { version = "0.38.3", features = ["serialize"] }

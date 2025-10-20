@@ -1,9 +1,8 @@
 use serde::{Serialize, Deserialize};
 use chrono::NaiveDate;
 
-
 #[derive(Serialize, Deserialize, Debug)]
-struct Transaction  {
+struct Line {
     date: NaiveDate,
     amount: f32,
     currency: String,
@@ -11,27 +10,36 @@ struct Transaction  {
     reference: String
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct Transaction  {
+   lines: Vec<Line>
+}
+
 
 impl Transaction  {
-    pub fn read<R: std::io::Read>(input_reader: &mut R) -> Result<Vec<Transaction>, Box<dyn std::error::Error>>{
+    pub fn read<R: std::io::Read>(input_reader: &mut R) -> Result<Transaction, Box<dyn std::error::Error>>{
         // create reader.
         let mut reader = csv::ReaderBuilder::new().from_reader(input_reader);
-        let mut transactions: Vec<Transaction > = Vec::new();
+        let mut lines: Vec<Line> = Vec::new();
 
         
         // read file line by line.
         for result in reader.deserialize() {
-            let op: Transaction  = result?;
-            transactions.push(op);
+            let op: Line  = result?;
+            lines.push(op);
         }
 
-        Ok(transactions)
+        Ok(Transaction {lines: lines})
     }
 
     pub fn write<W: std::io::Write>(&mut self, input_writer: &mut W)-> Result<(), Box<dyn std::error::Error>>{
         // create writer.
         let mut writer = csv::WriterBuilder::new().from_writer(input_writer);
-        let _ = writer.serialize(self);
+        
+        for line in &self.lines {
+            let _ = writer.serialize(&line);
+        }
+
         Ok(())
     }
 }
@@ -56,15 +64,15 @@ mod tests {
         };
 
         //assert
-        assert_eq!(result[0].amount, -1000.00);
-        assert_eq!(result[0].currency, "EUR");
-        assert_eq!(result[0].description, "Payment to supplier");
-        assert_eq!(result[0].reference, "REF123456");
+        assert_eq!(result.lines[0].amount, -1000.00);
+        assert_eq!(result.lines[0].currency, "EUR");
+        assert_eq!(result.lines[0].description, "Payment to supplier");
+        assert_eq!(result.lines[0].reference, "REF123456");
 
-        assert_eq!(result[1].amount, 2500.00);
-        assert_eq!(result[1].currency, "EUR");
-        assert_eq!(result[1].description, "Client payment");
-        assert_eq!(result[1].reference, "REF789012");
+        assert_eq!(result.lines[1].amount, 2500.00);
+        assert_eq!(result.lines[1].currency, "EUR");
+        assert_eq!(result.lines[1].description, "Client payment");
+        assert_eq!(result.lines[1].reference, "REF789012");
     }
 
     #[test]
@@ -88,15 +96,15 @@ mod tests {
         };
 
         //assert
-        assert_eq!(result[0].amount, -1000.00);
-        assert_eq!(result[0].currency, "EUR");
-        assert_eq!(result[0].description, "Payment to supplier");
-        assert_eq!(result[0].reference, "REF123456");
+        assert_eq!(result.lines[0].amount, -1000.00);
+        assert_eq!(result.lines[0].currency, "EUR");
+        assert_eq!(result.lines[0].description, "Payment to supplier");
+        assert_eq!(result.lines[0].reference, "REF123456");
 
-        assert_eq!(result[1].amount, 2500.00);
-        assert_eq!(result[1].currency, "EUR");
-        assert_eq!(result[1].description, "Client payment");
-        assert_eq!(result[1].reference, "REF789012");
+        assert_eq!(result.lines[1].amount, 2500.00);
+        assert_eq!(result.lines[1].currency, "EUR");
+        assert_eq!(result.lines[1].description, "Client payment");
+        assert_eq!(result.lines[1].reference, "REF789012");
     }
 
     #[test]
@@ -105,13 +113,14 @@ mod tests {
         //arrange
         let file_path = "in_data_write_test.csv";
         let r = &mut std::fs::File::create(file_path);
-        let mut data = Transaction{
+        let lines = Vec::from([Line{
             date: NaiveDate::from_ymd_opt(2023, 12, 31).expect("Valid date"),
             amount: 100.5,
             currency: String::from("RUB"),
             description: String::from("Test write csv."),
             reference: String::from("Some test ref"),
-        };
+        }]);
+        let mut data = Transaction{ lines: lines };
         let file = match r {
             Ok(file) => file,
             _ => panic!("test panic.")
@@ -132,13 +141,14 @@ mod tests {
         //arrange
         let mut vec = Vec::new();
         let mut cursor = std::io::Cursor::new(&mut vec);
-        let mut data = Transaction{
+        let lines = Vec::from([Line{
             date: NaiveDate::from_ymd_opt(2023, 12, 31).expect("Valid date"),
             amount: 100.5,
             currency: String::from("RUB"),
             description: String::from("Test write csv."),
             reference: String::from("Some test ref"),
-        };
+        }]);
+        let mut data = Transaction{ lines: lines };
 
         //act
         let _ = data.write( &mut cursor);

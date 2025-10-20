@@ -1,14 +1,4 @@
 mod csv_parsing;
 mod mt940_parsing;
 mod camt053;
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[test]
-//     fn it_works() {
-//         let result = add(2, 2);
-//         assert_eq!(result, 4);
-//     }
-// }
+mod cam_struct;
