@@ -29,20 +29,18 @@ impl Document{
         let field_20 = Field20{reference: stmt.id.clone()};
         
         // Field 25: Account Identification
-        let iban = stmt.acct.id.iban.as_ref()
-            .ok_or("IBAN is required for MT940 conversion")?;
+        let iban = stmt.acct.id.iban.as_ref().ok_or("IBAN is required for MT940 conversion")?;
         let field_25 = Field25NoOption{authorisation: iban.clone()};
-        
         let seq_number = stmt.lgl_seq_nb.clone() as u32;
 
         // Field 28C: Statement Number/Sequence Number
-        let field_28c = Field28C{statement_number: stmt.elctrnc_seq_nb.clone() as u32, 
-            sequence_number: Some(seq_number)};
+        let field_28c = Field28C{
+            statement_number: stmt.elctrnc_seq_nb.clone() as u32, 
+            sequence_number: Some(seq_number)
+        };
         
         // Field 60F: Opening Balance - используем первый доступный баланс
-        let opening_balance = stmt.balances.first()
-            .ok_or("No balances found for opening balance")?;
-        
+        let opening_balance = stmt.balances.first().ok_or("No balances found for opening balance")?;
         
         let field_60f = Field60F {
             value_date: NaiveDate::from_ymd_opt(2023, 12, 31).expect("Valid date"),
@@ -63,7 +61,7 @@ impl Document{
             amount: self.parse_amount(&closing_balance.amt.value)?,
         };
         
-        // Field 64: Available Balance (опционально)
+        // Field 64: Available Balance
         let field_64 = stmt.balances.iter()
             .find(|bal| bal.tp.cd_or_prtry.cd == "CLAV")
             .map(|bal| Field64 {
@@ -88,14 +86,14 @@ impl Document{
         
         Ok(Mt940Wrapper(MT940 {
             field_20,
-            field_21: None, // Не предоставлено в CAMT053
+            field_21: None,
             field_25,
             field_28c,
             field_60f,
             statement_lines,
             field_62f,
             field_64,
-            field_65: None, // Не предоставлено в CAMT053
+            field_65: None,
         }))
     }
 
