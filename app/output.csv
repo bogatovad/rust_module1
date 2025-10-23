@@ -1,0 +1,3 @@
+date,amount,currency,description,reference
+2023-10-01,-1000.0,EUR,Payment to supplier,REF123456
+2023-10-02,2500.0,EUR,Client payment,REF789012

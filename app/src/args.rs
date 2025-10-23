@@ -13,7 +13,7 @@ pub struct Cli {
    pub output: String,
 
    #[arg(long)]
-   pub out_format: String,
+   pub out_format: String
 }
 
 impl Cli {

@@ -21,6 +21,10 @@ impl Document{
         Ok(())
     }
 
+    pub fn to_string(&mut self) -> Result<String, Box<dyn std::error::Error>> {
+        Ok(to_string(&self)?)
+    }
+
     pub fn to_mt940(&self) -> Result<Mt940Wrapper, Box<dyn std::error::Error>> {
         let stmt = &self.bk_to_cstmr_stmt.stmt;
         
@@ -164,10 +168,10 @@ impl Document{
 
     fn determine_transaction_type(&self, bk_tx_cd: &BkTxCd) -> Result<String, Box<dyn std::error::Error>> {
         match bk_tx_cd.domn.fmly.cd.as_str() {
-            "RCDT" => Ok("CRED".to_string()), // Credit transfer
-            "ICDT" => Ok("DEBT".to_string()), // Debit transfer
-            "MCRD" => Ok("CARD".to_string()), // Card transaction
-            _ => Ok("NTRF".to_string()), // Default: transfer
+            "RCDT" => Ok("CRED".to_string()),
+            "ICDT" => Ok("DEBT".to_string()),
+            "MCRD" => Ok("CARD".to_string()),
+            _ => Ok("NTRF".to_string()),
         }
     }
 
@@ -205,42 +209,31 @@ mod tests {
         let mut file = std::fs::File::open("camt053.xml").unwrap();
 
         //act
-        let mut message = Document::read(&mut file).unwrap();
-        
-        let mut new_f = std::fs::File::create("new.xml").unwrap();
-        let _ = message.write(&mut new_f);
-
-        let mt940 = message.to_mt940().unwrap();
-        
-        let mut file_1 = std::fs::File::create("out.mt940").unwrap();
-
-        let _ = mt940.write(&mut file_1);
+        let message = Document::read(&mut file).unwrap();
 
 
-
-        // //assert
-        // assert_eq!(message.xmlns, Some("urn:swift:xsd:$ahV10".to_string()));
-        // assert_eq!(message.xmlns_xsi, Some("http://www.w3.org/2001/XMLSchema-instance".to_string()));
-        // assert_eq!(message.app_hdr.biz_msg_idr, "MSG20251020001");
-        // assert_eq!(message.app_hdr.msg_def_idr, "pacs.008.001.08");
-        // assert_eq!(message.app_hdr.biz_svc, "urn:service:cbpr");
-        // assert_eq!(message.app_hdr.cre_dt, "2025-10-20T10:00:00Z");
-        // if let Some(fr_fi_id) = &message.app_hdr.fr.fi_id {
-        //     assert_eq!(fr_fi_id.fin_instn_id.bicfi, "AAAADEFFXXX");
-        // }
-        // if let Some(to_fi_id) = &message.app_hdr.to.fi_id {
-        //     assert_eq!(to_fi_id.fin_instn_id.bicfi, "BBBBUS33XXX");
-        // }
+        //assert
+        assert_eq!(message.bk_to_cstmr_stmt.grp_hdr.cre_dt_tm, "2023-04-20T23:24:31".to_string());
+        assert_eq!(message.bk_to_cstmr_stmt.grp_hdr.msg_id, "XXX24Y4XXX1Y000000001".to_string());
+        assert_eq!(message.bk_to_cstmr_stmt.grp_hdr.msg_id, "XXX24Y4XXX1Y000000001".to_string());
+        assert_eq!(message.bk_to_cstmr_stmt.stmt.acct.ccy, "DKK".to_string());
+        assert_eq!(message.bk_to_cstmr_stmt.stmt.acct.id.iban, Some("DK8030000001234567".to_string()));
     }
 
-    // #[test]
-    // fn parsing_camt053_test_write_file() {
-    //     //arrange
-    //     let mut file = std::fs::File::open("camt053.xml").unwrap();
-    //     let mut w_file = std::fs::File::create("output.xml").unwrap();
+    #[test]
+    fn parsing_camt053_test_write_file() {
+        //arrange
+        let mut file = std::fs::File::open("camt053.xml").unwrap();
+        let mut w_file = std::fs::File::create("output.xml").unwrap();
 
-    //     //act
-    //     let mut message = MxMessageWrapper::read(&mut file).unwrap();
-    //     let _ = message.write(&mut w_file);
-    // }
+        //act
+        let mut message = Document::read(&mut file).unwrap();
+        let _ = message.write(&mut w_file);
+        let exist_file = std::fs::exists("output.xml").unwrap();
+        
+        //assert
+        assert_eq!(exist_file, true);
+
+        let _ = std::fs::remove_file("output.xml");
+    }
 }

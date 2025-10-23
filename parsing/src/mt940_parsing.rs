@@ -11,13 +11,14 @@ impl Mt940Wrapper {
     pub fn read<R: std::io::Read>(input_reader: &mut R) -> Result<Self, Box<dyn std::error::Error>>{
         let mut buf = Vec::new();
         let _ = input_reader.read_to_end(&mut buf);
-        let content = String::from_utf8(buf).unwrap();
+        let content = String::from_utf8(buf)?;
         Ok(Mt940Wrapper(MT940::parse_from_block4(&content)?))
     }
 
     pub fn write<W: std::io::Write>(&self, input_writer: &mut W) -> Result<(), Box<dyn std::error::Error>>{
         let mt_string = self.to_mt_string();
-        let _ = input_writer.write_all(mt_string.as_bytes());
+        input_writer.write_all(mt_string.as_bytes())?;
+        input_writer.flush()?;
         Ok(())
     }
 
@@ -292,7 +293,6 @@ impl std::ops::Deref for Mt940Wrapper {
     }
 }
 
-// Реализация DerefMut для изменяемого доступа
 impl std::ops::DerefMut for Mt940Wrapper {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
@@ -332,18 +332,6 @@ mod tests {
 
         let mut f = std::fs::File::create("test.xml").unwrap();
         doc.write(&mut f);
-
-        // for msg in messages {
-        //     println!("Transaction ref: {}", msg.transaction_ref_no);
-        //     println!("Account ID: {}", msg.account_id);
-        //     println!("Opening balance: {:?}", msg.opening_balance);
-        //     println!("Closing balance: {:?}", msg.closing_balance);
-
-        //     for line in msg.statement_lines.iter() {
-        //         println!("  Line: {:?}", line);
-        //     }
-        //     println!("---");
-        // }
     }
 
     #[test]
@@ -354,22 +342,13 @@ mod tests {
 
         //arrange
         let result = Mt940Wrapper::read(&mut cursor);
-        let messages = match result {
-            Ok(messages) => messages,
+        let message = match result {
+            Ok(message) => message,
             _ => panic!("error")
         };
-        //assert
-        // for msg in messages {
-        //     println!("Transaction ref: {}", msg.transaction_ref_no);
-        //     println!("Account ID: {}", msg.account_id);
-        //     println!("Opening balance: {:?}", msg.opening_balance);
-        //     println!("Closing balance: {:?}", msg.closing_balance);
 
-        //     for line in msg.statement_lines.iter() {
-        //         println!("  Line: {:?}", line);
-        //     }
-        //     println!("---");
-        // }
+        assert_eq!(message.field_20.reference, "123456789");
+        assert_eq!(message.field_25.authorisation, "123456789/12345678");
     }
 
     #[test]
@@ -397,22 +376,9 @@ mod tests {
         };
 
         //arrange
-        let result = message.write(&mut file1);
-        // let messages = match result {
-        //     Ok(messages) => messages,
-        //     _ => panic!("error")
-        // };
-        //assert
-        // for msg in messages {
-        //     println!("Transaction ref: {}", msg.transaction_ref_no);
-        //     println!("Account ID: {}", msg.account_id);
-        //     println!("Opening balance: {:?}", msg.opening_balance);
-        //     println!("Closing balance: {:?}", msg.closing_balance);
-
-        //     for line in msg.statement_lines.iter() {
-        //         println!("  Line: {:?}", line);
-        //     }
-        //     println!("---");
-        // }
+        let _ = message.write(&mut file1);
+        let exist_file = std::fs::exists(file_name).unwrap();
+        assert_eq!(exist_file, true);
+        let _ = std::fs::remove_file(file_name);
     }
 }

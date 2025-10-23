@@ -1,0 +1,51 @@
+1) Чтение из файла и вывод в stdout
+
+1.1) csv
+
+cargo run -- --input in_data.csv --in-format csv --output stdout --out-format stdout
+
+Transaction { lines: [Line { date: 2023-10-01, amount: -1000.0, currency: "EUR", description: "Payment to supplier", reference: "REF123456" }, Line { date: 2023-10-02, amount: 2500.0, currency: "EUR", description: "Client payment", reference: "REF789012" }] }
+
+1.2) camt053
+
+cargo run -- --input camt053.xml --in-format camt053 --output stdout --out-format stdout
+
+<Document><BkToCstmrStmt><GrpHdr><MsgId>123456789</MsgId><CreDtTm>2025-10-23T13:48:21</CreDtTm></GrpHdr><Stmt><Id>123456789....
+
+1.3) mt940
+
+cargo run -- --input out.mt940 --in-format mt940 --output stdout --out-format stdout
+
+:20:123456789\r\n:25:/123456789/12345678\r\n:28C:1/1\r\n:60F:C240930EUR12345,67\r\n:61:2410011001D123,45NTRFNONREF//123456789\r\n:86:Transfer to John Doe\r\n:61:2410021002C456,78NTRFNONREF//987654321\r\n:86:Payment from ACME Corp\r\n:62F:C241002EUR12679,00
+
+2) Конвертация из mt940 в camt053
+
+cargo run -- --input out.mt940 --in-format mt940 --output camt053.xml --out-format camt053
+
+3) Конвертация из camt053 в mt940
+
+cargo run -- --input camt053.xml --in-format camt053 --output out.mt940 --out-format mt940
+
+4) Чтение из stdout и запись в файла
+
+4.1) cargo run -- --input "date,amount,currency,description,reference
+2023-10-01,-1000.00,EUR,Payment to supplier,REF123456
+2023-10-02,2500.00,EUR,Client payment,REF789012" --in-format stdout --output output.csv --out-format csv
+
+смотрим, появился файл output.csv с содержимым
+
+date,amount,currency,description,reference
+2023-10-01,-1000.0,EUR,Payment to supplier,REF123456
+2023-10-02,2500.0,EUR,Client payment,REF789012
+
+4.2) cargo run -- --input ":20:123456789
+:25:/123456789/12345678
+:28C:1/1
+:60F:C240930EUR12345,67
+:61:2410011001D123,45NTRFNONREF//123456789
+:86:Transfer to John Doe
+:61:2410021002C456,78NTRFNONREF//987654321
+:86:Payment from ACME Corp
+:62F:C241002EUR12679,00" --in-format stdout --output output.mt940 --out-format mt940
+
+В итоге получаем файл с соответствующим содержимым

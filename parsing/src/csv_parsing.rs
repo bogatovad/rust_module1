@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize};
 use chrono::NaiveDate;
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Line {
+pub struct Line {
     date: NaiveDate,
     amount: f32,
     currency: String,
@@ -11,7 +11,7 @@ struct Line {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Transaction  {
+pub struct Transaction  {
    lines: Vec<Line>
 }
 
