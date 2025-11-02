@@ -1,6 +1,7 @@
 use serde::{Serialize, Deserialize};
 use chrono::NaiveDate;
 
+/// This struct is line in csv file
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Line {
     date: NaiveDate,
@@ -10,13 +11,19 @@ pub struct Line {
     reference: String
 }
 
+/// This struct is several lines
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Transaction  {
    lines: Vec<Line>
 }
 
-
+/// This struct implements methods to read and write CSV formats
 impl Transaction  {
+    /// Read from reader object which implements trait std::io::Read 
+    /// 
+    /// # Arguments
+    /// 
+    /// * `input_reader` this is a source of data
     pub fn read<R: std::io::Read>(input_reader: &mut R) -> Result<Transaction, Box<dyn std::error::Error>>{
         // create reader.
         let mut reader = csv::ReaderBuilder::new().from_reader(input_reader);
@@ -32,6 +39,11 @@ impl Transaction  {
         Ok(Transaction {lines: lines})
     }
 
+    /// Write to writer object which implements trait std::io::Write 
+    /// 
+    /// # Arguments
+    /// 
+    /// * `input_writer` this is a source of data
     pub fn write<W: std::io::Write>(&mut self, input_writer: &mut W)-> Result<(), Box<dyn std::error::Error>>{
         // create writer.
         let mut writer = csv::WriterBuilder::new().from_writer(input_writer);

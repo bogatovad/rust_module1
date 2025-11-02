@@ -6,25 +6,55 @@ use swift_mt_message::messages::mt940::{MT940, MT940StatementLine};
 use swift_mt_message::fields::{Field61, Field86, Field20, Field25NoOption, Field28C, Field60F, Field62F, Field64};
 use chrono::{NaiveDate, NaiveDateTime};
 
+
+/// Implement TryFrom to convert Document to Mt940Wrapper
+impl TryFrom<Document> for Mt940Wrapper {
+    type Error = Box<dyn std::error::Error>;
+    
+    fn try_from(doc: Document) -> Result<Self, Self::Error> {
+        doc.to_mt940()
+    }
+}
+
+/// Implement TryFrom to convert &Document to Mt940Wrapper
+impl TryFrom<&Document> for Mt940Wrapper {
+    type Error = Box<dyn std::error::Error>;
+    
+    fn try_from(doc: &Document) -> Result<Self, Self::Error> {
+        doc.to_mt940()
+    }
+}
+
+/// This struct implements methods to read and write camt053 formats
 impl Document{
+    /// Read from reader object which implements trait std::io::Read 
+    /// 
+    /// # Arguments
+    /// 
+    /// * `reader` this is a source of data
     pub fn read<R: std::io::Read>(reader: &mut R) -> Result<Self, Box<dyn std::error::Error>> {
         let mut xml_content = String::new();
         reader.read_to_string(&mut xml_content)?;
         let document: Document = from_str(&xml_content)?;
         Ok(document)
     }
-
+    /// Write to writer object which implements trait std::io::Write 
+    /// 
+    /// # Arguments
+    /// 
+    /// * `writer` this is a source of data
     pub fn write<W: std::io::Write>(&mut self, writer: &mut W) -> Result<(), Box<dyn std::error::Error>> {
         let xml_content = to_string(&self)?;
         writer.write_all(xml_content.as_bytes())?;
         writer.flush()?;
         Ok(())
     }
-
+    
     pub fn to_string(&mut self) -> Result<String, Box<dyn std::error::Error>> {
         Ok(to_string(&self)?)
     }
 
+    /// Convert Document to MT940
     pub fn to_mt940(&self) -> Result<Mt940Wrapper, Box<dyn std::error::Error>> {
         let stmt = &self.bk_to_cstmr_stmt.stmt;
         
@@ -67,10 +97,9 @@ impl Document{
             amount: self.parse_amount(&closing_balance.amt.value)?,
         };
         
-        // Field 64: Available Balance
         let field_64 = self.find_balance_by_type("CLAV")
             .map(|bal| Field64 {
-                value_date: self.parse_date(&bal.dt.dt).unwrap_or_else(|_| NaiveDate::from_ymd_opt(2023, 12, 31).unwrap()),
+                value_date: self.parse_date(&bal.dt.dt).unwrap_or_else(|_| NaiveDate::from_ymd_opt(2023, 12, 31).expect("Error while unpack date.")),
                 debit_credit_mark: self.convert_debit_credit(&bal.cdt_dbt_ind).unwrap_or("C".to_string()),
                 currency: bal.amt.ccy.clone(),
                 amount: self.parse_amount(&bal.amt.value).unwrap_or(0.0),
@@ -235,5 +264,18 @@ mod tests {
         assert_eq!(exist_file, true);
 
         let _ = std::fs::remove_file("output.xml");
+    }
+
+    #[test]
+    fn parsing_camt053_test_read_file_and_convert() {
+        //arrange
+        let mut file = std::fs::File::open("camt053.xml").unwrap();
+
+        //act
+        let message = Document::read(&mut file).unwrap();
+        let mt940_file: Mt940Wrapper = message.try_into().expect("Conversion error");
+
+        //assert
+        assert_eq!("XXX24Y4XXX1Y000000001", mt940_file.field_20.reference);
     }
 }

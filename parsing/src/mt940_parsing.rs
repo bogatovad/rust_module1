@@ -3,11 +3,33 @@ use swift_mt_message::fields::field20::Field20;
 use crate::cam_struct::*;
 use swift_mt_message::fields::*;
 use chrono::Utc;
-
+use std::convert::{TryFrom, TryInto};
 
 pub struct Mt940Wrapper(pub MT940);
 
+/// convert from MT940 to camt053
+impl TryFrom<Mt940Wrapper> for Document {
+    type Error = Box<dyn std::error::Error>;
+    
+    fn try_from(wrapper: Mt940Wrapper) -> Result<Self, Self::Error> {
+        wrapper.to_camt053()
+    }
+}
+
+/// Implement trait From for mt940
+impl From<MT940> for Mt940Wrapper {
+    fn from(mt940: MT940) -> Self {
+        Mt940Wrapper(mt940)
+    }
+}
+
+/// This struct implements methods to read and write mt940 formats
 impl Mt940Wrapper {
+    /// Read from reader object which implements trait std::io::Read 
+    /// 
+    /// # Arguments
+    /// 
+    /// * `input_reader` this is a source of data
     pub fn read<R: std::io::Read>(input_reader: &mut R) -> Result<Self, Box<dyn std::error::Error>>{
         let mut buf = Vec::new();
         let _ = input_reader.read_to_end(&mut buf);
@@ -15,13 +37,19 @@ impl Mt940Wrapper {
         Ok(Mt940Wrapper(MT940::parse_from_block4(&content)?))
     }
 
+    /// Write to input_writer object which implements trait std::io::Write 
+    /// 
+    /// # Arguments
+    /// 
+    /// * `input_writer` this is a source of data
     pub fn write<W: std::io::Write>(&self, input_writer: &mut W) -> Result<(), Box<dyn std::error::Error>>{
         let mt_string = self.to_mt_string();
-        input_writer.write_all(mt_string.as_bytes())?;
-        input_writer.flush()?;
+        input_writer.write_all(mt_string.as_bytes()).expect("Error while writing file.");
+        input_writer.flush().expect("Error while flush file.");
         Ok(())
     }
 
+    /// Convert mt940 to camt053
     pub fn to_camt053(&self) -> Result<Document, Box<dyn std::error::Error>> {
         let mt940 = &self.0;
         let current_time = Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
@@ -75,8 +103,8 @@ impl Mt940Wrapper {
                             },
                         },
                     },
-                    balances: self.create_balances(mt940)?,
-                    txs_summry: self.create_transaction_summary(mt940)?,
+                    balances: self.create_balances(mt940).expect("Error while creating balance"),
+                    txs_summry: self.create_transaction_summary(mt940).expect("Error while create transaction summary."),
                     entries: self.create_entries(mt940)?,
                 },
             },
@@ -300,60 +328,60 @@ impl std::ops::DerefMut for Mt940Wrapper {
 }
 
 
-
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use super::*;
 
     #[test]
-    fn parsing_mt940_test() {
-        //act
+    fn parsing_mt940_test_try_into() {
+        // Act
         let file_path = "statement.mt940";
-        let f = std::fs::File::open(file_path);
-        let mut file = match f {
-            Ok(file) => file,
-            _ => panic!("test panic.")
-        };
+        let mut file = std::fs::File::open(file_path).expect("File not found");
 
-        //arrange
-        let result = Mt940Wrapper::read(&mut file);
-        let message = match result {
-            Ok(messages) => messages,
-            _ => panic!("error")
-        };
+        // Arrange
+        let message = Mt940Wrapper::read(&mut file).expect("Parse error");
+        
+        // Convert
+        let mut doc: Document = message.try_into().expect("Conversion error");
 
-        //assert
-        assert_eq!(Field20{reference: String::from("123456789")}, message.field_20);
-
-        let mut doc = message.to_camt053().unwrap();
-
-
+        // Assert
         let mut f = std::fs::File::create("test.xml").unwrap();
-        doc.write(&mut f);
+        doc.write(&mut f).expect("Write error");
+    }
+
+    #[test]
+    fn parsing_mt940_test_stdint_try_into() {
+        // Act
+        let data = ":20:123456789\n:25:123456789/12345678\n:28C:00001/001\n:60F:C240930EUR12345,67\n:61:2410011001D123,45NTRFNONREF//123456789\n:86:Transfer to John Doe\n:61:2410021002C456,78NTRFNONREF//987654321\n:86:Payment from ACME Corp\n:62F:C241002EUR12679,00\n".as_bytes();
+        let mut cursor = std::io::Cursor::new(data);
+
+        // Arrange
+        let message = Mt940Wrapper::read(&mut cursor).expect("Parse error");
+        let doc_result: Result<Document, _> = message.try_into();
+        
+        assert!(doc_result.is_ok());
     }
 
     #[test]
     fn parsing_mt940_test_stdint() {
-        //act
+        // Act
         let data = ":20:123456789\n:25:123456789/12345678\n:28C:00001/001\n:60F:C240930EUR12345,67\n:61:2410011001D123,45NTRFNONREF//123456789\n:86:Transfer to John Doe\n:61:2410021002C456,78NTRFNONREF//987654321\n:86:Payment from ACME Corp\n:62F:C241002EUR12679,00\n".as_bytes();
         let mut cursor = std::io::Cursor::new(data);
 
-        //arrange
+        // Arrange
         let result = Mt940Wrapper::read(&mut cursor);
         let message = match result {
             Ok(message) => message,
             _ => panic!("error")
         };
 
+        // Assert
         assert_eq!(message.field_20.reference, "123456789");
         assert_eq!(message.field_25.authorisation, "123456789/12345678");
     }
 
     #[test]
     fn parsing_mt940_test_write() {
-        //act
         let file_path = "statement.mt940";
         let f = std::fs::File::open(file_path);
         let mut file = match f {
@@ -361,7 +389,6 @@ mod tests {
             _ => panic!("test panic.")
         };
 
-        //arrange
         let result = Mt940Wrapper::read(&mut file);
         let message = match result {
             Ok(messages) => messages,
@@ -375,7 +402,6 @@ mod tests {
             _ => panic!("test panic.")
         };
 
-        //arrange
         let _ = message.write(&mut file1);
         let exist_file = std::fs::exists(file_name).unwrap();
         assert_eq!(exist_file, true);
