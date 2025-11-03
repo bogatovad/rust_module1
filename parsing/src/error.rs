@@ -55,3 +55,9 @@ impl From<chrono::format::ParseError> for ParsingError {
         ParsingError::ParseDateError(err.to_string())
     }
 }
+
+impl From<Box<dyn std::error::Error>> for ParsingError {
+    fn from(err: Box<dyn std::error::Error>) -> Self {
+        ParsingError::ConversionError(err.to_string())
+    }
+}

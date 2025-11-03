@@ -4,7 +4,7 @@ use crate::args::Cli;
 use parsing::cam_struct::Document;
 use parsing::mt940_parsing::Mt940Wrapper;
 use parsing::csv_parsing::Transaction;
-
+use std::convert::TryInto;
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -15,14 +15,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut file_in = std::fs::File::open(&cli.input)?;
             let mut file_out = std::fs::File::create(&cli.output)?;
             let doc_camt053 = Document::read(&mut file_in)?;
-            let doc_mt940 = doc_camt053.to_mt940()?;
+            let doc_mt940: Mt940Wrapper = doc_camt053.try_into()?;
             doc_mt940.write(&mut file_out)?;
         }
         ("mt940", "camt053") => {
             let mut file_in = std::fs::File::open(&cli.input)?;
             let mut file_out = std::fs::File::create(&cli.output)?;
             let doc_mt940 = Mt940Wrapper::read(&mut file_in)?;
-            let mut doc_camt053 = doc_mt940.to_camt053()?;
+            let mut doc_camt053: Document = doc_mt940.try_into()?;
             doc_camt053.write(&mut file_out)?;
         }
         ("mt940", "stdout") => {
@@ -33,7 +33,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("camt053", "stdout") => {
             let mut file_in = std::fs::File::open(&cli.input)?;
             let mut doc_camt053 = Document::read(&mut file_in)?;
-            println!("{:?}", doc_camt053.to_string());
+            let xml_string = doc_camt053.to_string()?;
+            println!("{}", xml_string);
         }
         ("csv", "stdout") => {
             let mut file_in = std::fs::File::open(&cli.input)?;
