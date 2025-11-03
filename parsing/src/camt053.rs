@@ -1,3 +1,4 @@
+
 use crate::cam_struct::{Document, Bal, Ntry, BkTxCd};
 use crate::mt940_parsing::Mt940Wrapper;
 use quick_xml::de::from_str;
@@ -5,27 +6,51 @@ use quick_xml::se::to_string;
 use swift_mt_message::messages::mt940::{MT940, MT940StatementLine};
 use swift_mt_message::fields::{Field61, Field86, Field20, Field25NoOption, Field28C, Field60F, Field62F, Field64};
 use chrono::{NaiveDate, NaiveDateTime};
+use crate::error::ParsingError;
+use std::convert::{TryFrom, TryInto};
 
-impl Document{
-    pub fn read<R: std::io::Read>(reader: &mut R) -> Result<Self, Box<dyn std::error::Error>> {
+/// Implement TryFrom to convert Document to Mt940Wrapper
+impl TryFrom<Document> for Mt940Wrapper {
+    type Error = ParsingError;
+    
+    fn try_from(doc: Document) -> Result<Self, Self::Error> {
+        doc.to_mt940()
+    }
+}
+
+/// Implement TryFrom to convert &Document to Mt940Wrapper
+impl TryFrom<&Document> for Mt940Wrapper {
+    type Error = ParsingError;
+    
+    fn try_from(doc: &Document) -> Result<Self, Self::Error> {
+        doc.to_mt940()
+    }
+}
+
+/// This struct implements methods to read and write camt053 formats
+impl Document {
+    /// Read from reader object which implements trait std::io::Read 
+    pub fn read<R: std::io::Read>(reader: &mut R) -> Result<Self, ParsingError> {
         let mut xml_content = String::new();
         reader.read_to_string(&mut xml_content)?;
         let document: Document = from_str(&xml_content)?;
         Ok(document)
     }
-
-    pub fn write<W: std::io::Write>(&mut self, writer: &mut W) -> Result<(), Box<dyn std::error::Error>> {
+    
+    /// Write to writer object which implements trait std::io::Write 
+    pub fn write<W: std::io::Write>(&mut self, writer: &mut W) -> Result<(), ParsingError> {
         let xml_content = to_string(&self)?;
         writer.write_all(xml_content.as_bytes())?;
         writer.flush()?;
         Ok(())
     }
-
-    pub fn to_string(&mut self) -> Result<String, Box<dyn std::error::Error>> {
+    
+    pub fn to_string(&mut self) -> Result<String, ParsingError> {
         Ok(to_string(&self)?)
     }
 
-    pub fn to_mt940(&self) -> Result<Mt940Wrapper, Box<dyn std::error::Error>> {
+    /// Convert Document to MT940
+    pub fn to_mt940(&self) -> Result<Mt940Wrapper, ParsingError> {
         let stmt = &self.bk_to_cstmr_stmt.stmt;
         
         // Field 20: Transaction Reference Number
@@ -33,7 +58,7 @@ impl Document{
         
         // Field 25: Account Identification
         let iban = stmt.acct.id.iban.as_ref()
-            .ok_or("IBAN is required for MT940 conversion")?;
+            .ok_or_else(|| ParsingError::MissingField("IBAN is required for MT940 conversion".to_string()))?;
         let field_25 = Field25NoOption { authorisation: iban.clone() };
         
         // Field 28C: Statement Number/Sequence Number
@@ -45,11 +70,11 @@ impl Document{
         // Find appropriate balances
         let opening_balance = self.find_balance_by_type("OPBD")
             .or_else(|| self.find_balance_by_type("OPAV"))
-            .ok_or("No opening balance found")?;
+            .ok_or_else(|| ParsingError::MissingField("No opening balance found".to_string()))?;
             
         let closing_balance = self.find_balance_by_type("CLBD")
             .or_else(|| self.find_balance_by_type("CLAV"))
-            .ok_or("No closing balance found")?;
+            .ok_or_else(|| ParsingError::MissingField("No closing balance found".to_string()))?;
         
         // Field 60F: Opening Balance
         let field_60f = Field60F {
@@ -67,15 +92,34 @@ impl Document{
             amount: self.parse_amount(&closing_balance.amt.value)?,
         };
         
-        // Field 64: Available Balance
+        // Field 64: Optional Closing Available Balance
         let field_64 = self.find_balance_by_type("CLAV")
-            .map(|bal| Field64 {
-                value_date: self.parse_date(&bal.dt.dt).unwrap_or_else(|_| NaiveDate::from_ymd_opt(2023, 12, 31).unwrap()),
-                debit_credit_mark: self.convert_debit_credit(&bal.cdt_dbt_ind).unwrap_or("C".to_string()),
-                currency: bal.amt.ccy.clone(),
-                amount: self.parse_amount(&bal.amt.value).unwrap_or(0.0),
-            });
-        
+            .map(|bal| -> Result<Field64, ParsingError> {
+                let value_date = match self.parse_date(&bal.dt.dt) {
+                    Ok(date) => date,
+                    Err(_) => NaiveDate::from_ymd_opt(2023, 12, 31)
+                        .ok_or_else(|| ParsingError::ParseDateError("Invalid fallback date".to_string()))?,
+                };
+                
+                let debit_credit_mark = match self.convert_debit_credit(&bal.cdt_dbt_ind) {
+                    Ok(mark) => mark,
+                    Err(_) => "C".to_string(),
+                };
+                
+                let amount = match self.parse_amount(&bal.amt.value) {
+                    Ok(amt) => amt,
+                    Err(_) => 0.0,
+                };
+                
+                Ok(Field64 {
+                    value_date,
+                    debit_credit_mark,
+                    currency: bal.amt.ccy.clone(),
+                    amount,
+                })
+            })
+            .transpose()?;
+
         // Statement Lines
         let mut statement_lines = Vec::new();
         for entry in &stmt.entries {
@@ -103,7 +147,7 @@ impl Document{
             .find(|bal| bal.tp.cd_or_prtry.cd == balance_type)
     }
 
-    fn convert_entry_to_statement_line(&self, entry: &Ntry) -> Result<Option<MT940StatementLine>, Box<dyn std::error::Error>> {
+    fn convert_entry_to_statement_line(&self, entry: &Ntry) -> Result<Option<MT940StatementLine>, ParsingError> {
         // Field 61: Transaction Details
         let value_date = self.parse_date(&entry.val_dt.dt)?;
         let entry_date = self.parse_date(&entry.bookg_dt.dt)
@@ -136,7 +180,7 @@ impl Document{
         }))
     }
 
-    fn build_narrative(&self, entry: &Ntry) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    fn build_narrative(&self, entry: &Ntry) -> Result<Vec<String>, ParsingError> {
         let mut narrative = Vec::new();
         narrative.push(format!("{}", entry.bk_tx_cd.prtry.cd));
         
@@ -166,7 +210,7 @@ impl Document{
         Ok(narrative)
     }
 
-    fn determine_transaction_type(&self, bk_tx_cd: &BkTxCd) -> Result<String, Box<dyn std::error::Error>> {
+    fn determine_transaction_type(&self, bk_tx_cd: &BkTxCd) -> Result<String, ParsingError> {
         match bk_tx_cd.domn.fmly.cd.as_str() {
             "RCDT" => Ok("CRED".to_string()),
             "ICDT" => Ok("DEBT".to_string()),
@@ -175,29 +219,28 @@ impl Document{
         }
     }
 
-    fn parse_date(&self, date_str: &str) -> Result<NaiveDate, Box<dyn std::error::Error>> {
+    fn parse_date(&self, date_str: &str) -> Result<NaiveDate, ParsingError> {
         if let Ok(datetime) = NaiveDateTime::parse_from_str(date_str, "%Y-%m-%dT%H:%M:%S") {
             return Ok(datetime.date());
         }
         if let Ok(date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
             return Ok(date);
         }
-        Err(format!("Invalid date format: {}", date_str).into())
+        Err(ParsingError::ParseDateError(format!("Invalid date format: {}", date_str)))
     }
 
-    fn convert_debit_credit(&self, indicator: &str) -> Result<String, Box<dyn std::error::Error>> {
+    fn convert_debit_credit(&self, indicator: &str) -> Result<String, ParsingError> {
         match indicator {
             "DBIT" => Ok("D".to_string()),
             "CRDT" => Ok("C".to_string()),
-            _ => Err(format!("Invalid debit/credit indicator: {}", indicator).into()),
+            _ => Err(ParsingError::InvalidIndicator(format!("Invalid debit/credit indicator: {}", indicator))),
         }
     }
 
-    fn parse_amount(&self, amount_str: &str) -> Result<f64, Box<dyn std::error::Error>> {
-        amount_str.parse::<f64>().map_err(|e| e.into())
+    fn parse_amount(&self, amount_str: &str) -> Result<f64, ParsingError> {
+        amount_str.parse::<f64>().map_err(ParsingError::from)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -211,10 +254,8 @@ mod tests {
         //act
         let message = Document::read(&mut file).unwrap();
 
-
         //assert
         assert_eq!(message.bk_to_cstmr_stmt.grp_hdr.cre_dt_tm, "2023-04-20T23:24:31".to_string());
-        assert_eq!(message.bk_to_cstmr_stmt.grp_hdr.msg_id, "XXX24Y4XXX1Y000000001".to_string());
         assert_eq!(message.bk_to_cstmr_stmt.grp_hdr.msg_id, "XXX24Y4XXX1Y000000001".to_string());
         assert_eq!(message.bk_to_cstmr_stmt.stmt.acct.ccy, "DKK".to_string());
         assert_eq!(message.bk_to_cstmr_stmt.stmt.acct.id.iban, Some("DK8030000001234567".to_string()));
@@ -233,7 +274,32 @@ mod tests {
         
         //assert
         assert_eq!(exist_file, true);
-
         let _ = std::fs::remove_file("output.xml");
+    }
+
+    #[test]
+    fn parsing_camt053_test_read_file_and_convert() {
+        //arrange
+        let mut file = std::fs::File::open("camt053.xml").unwrap();
+
+        //act
+        let message = Document::read(&mut file).unwrap();
+        let mt940_file: Mt940Wrapper = message.try_into().expect("Conversion error");
+
+        //assert
+        assert_eq!("XXX24Y4XXX1Y000000001", mt940_file.field_20.reference);
+    }
+
+    #[test]
+    fn test_error_conversion() {
+        // Test that our error types work properly
+        let invalid_date = "invalid-date";
+        let result = NaiveDate::parse_from_str(invalid_date, "%Y-%m-%d");
+        assert!(result.is_err());
+        
+        // Test our parse_date method
+        let doc = Document::read(&mut std::fs::File::open("camt053.xml").unwrap()).unwrap();
+        let result = doc.parse_date("invalid-date");
+        assert!(matches!(result, Err(ParsingError::ParseDateError(_))));
     }
 }

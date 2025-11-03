@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+/// This is the stuct which implements data in mt940 formats
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Document {
