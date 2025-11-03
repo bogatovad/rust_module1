@@ -1,4 +1,4 @@
-// В файле error.rs или там где объявлен ParsingError
+/// errors for parsing
 #[derive(Debug)]
 pub enum ParsingError {
     ParseDateError(String),
@@ -26,7 +26,6 @@ impl std::fmt::Display for ParsingError {
 
 impl std::error::Error for ParsingError {}
 
-// Реализуем From для автоматического преобразования других ошибок
 impl From<quick_xml::DeError> for ParsingError {
     fn from(err: quick_xml::DeError) -> Self {
         ParsingError::XmlError(err.to_string())
