@@ -6,3 +6,4 @@ pub mod mt940_parsing;
 pub mod camt053;
 /// this mod gives the cam053 structs
 pub mod cam_struct;
+pub mod error;
